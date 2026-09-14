@@ -200,6 +200,8 @@ const POS = () => {
   const [ordersItems, setOrdersItems] = useState([]);
   const [heldOrders, setHeldOrders] = useState(getInitialHeldOrders());
   const [currentHeldOrderId, setCurrentHeldOrderId] = useState(null);
+  const [currentHeldOrderDatabaseId, setCurrentHeldOrderDatabaseId] = useState(null);
+  const [currentHeldOrderNumber, setCurrentHeldOrderNumber] = useState(null);
   const [completedOrder, setCompletedOrder] = useState(null);
   const [orderData, setOrderData] = useState(getInitialOrderData());
   const [sizeDialog, setSizeDialog] = useState(false);
@@ -385,6 +387,23 @@ const POS = () => {
       margin: 8px 0;
     }
 
+    .serial-no {
+      text-align: center;
+      margin: 2px 0 8px;
+    }
+
+    .serial-no .label {
+      font-size: 9px;
+      font-weight: bold;
+      color: #000 !important;
+    }
+
+    .serial-no .value {
+      font-size: 12px;
+      font-weight: bold;
+      color: #000 !important;
+    }
+
     .order-no .label {
       font-size: 10.5px;
       font-weight: bold;
@@ -494,12 +513,12 @@ const POS = () => {
 
   <div class="order-no">
     <div class="label">Order No.</div>
-    <div class="value">#${receiptData.id}</div>
+    <div class="value">#${receiptData.order_number ?? receiptData.id}</div>
   </div>
 
-  <div class="order-no">
+  <div class="serial-no">
     <div class="label">Serial No.</div>
-    <div class="value">#${receiptData.id}</div>
+    <div class="value">#${receiptData.id ?? '-'}</div>
   </div>
 
   <div class="divider"></div>
@@ -755,7 +774,7 @@ const POS = () => {
     };
 
     setCart(prevCart => {
-      const existingItem = prevCart.find(item => item.id === dealItem.id && item.isDeal);
+      const existingItem = prevCart.find(item => item.id === dealItem.id && item.isDeal && !item._heldItem);
       if (existingItem) {
         return prevCart.map(item =>
           item.id === dealItem.id && item.isDeal
@@ -788,7 +807,7 @@ const POS = () => {
     // For products without size options
     const price = getProductBasePrice(product);
     setCart(prevCart => {
-      const existingItem = prevCart.find(item => item.id === product.id && !item.size);
+      const existingItem = prevCart.find(item => item.id === product.id && !item.size && !item._heldItem);
       if (existingItem) {
         return prevCart.map(item =>
           item.id === product.id && !item.size
@@ -814,7 +833,7 @@ const POS = () => {
 
     setCart(prevCart => {
       const existingItem = prevCart.find(
-        item => item.id === selectedProduct.id && item.size === selectedSize
+        item => item.id === selectedProduct.id && item.size === selectedSize && !item._heldItem
       );
       if (existingItem) {
         return prevCart.map(item =>
@@ -847,7 +866,7 @@ const POS = () => {
     const cartKey = `cup-${selectedFlavours.map(([id, c]) => `${id}x${c}`).join('-')}`;
 
     setCart(prevCart => {
-      const existing = prevCart.find(item => item._iceCreamKey === cartKey);
+      const existing = prevCart.find(item => item._iceCreamKey === cartKey && !item._heldItem);
       if (existing) {
         return prevCart.map(item =>
           item._iceCreamKey === cartKey
@@ -872,16 +891,16 @@ const POS = () => {
   };
 
   const removeFromCart = (productId, size = null) => {
-    setCart(prevCart => 
-      prevCart.filter(item => 
-        item.id !== productId || (size !== null && item.size !== size)
-      )
-    );
+    setCart(prevCart => prevCart.filter(item => {
+      if (item._heldItem) return true;
+      return item.id !== productId || (size !== null && item.size !== size);
+    }));
   };
 
   const updateQuantity = (productId, delta, size = null) => {
     setCart(prevCart =>
       prevCart.map(item => {
+        if (item._heldItem) return item;
         if (item.id === productId && (size === null || item.size === size)) {
           const newQuantity = Math.max(1, item.quantity + delta);
           return { ...item, quantity: newQuantity };
@@ -900,17 +919,20 @@ const POS = () => {
   const discountAmount = cartTotal * (discountPercentValue / 100);
   const finalTotal = cartTotal + taxAmount - discountAmount;
 
-  const buildReceiptData = () => {
-    const nextOrderNumber = orderNumberRef.current;
-    orderNumberRef.current += 1;
-    // Persist the new order number with today's date so it survives refresh but resets at midnight
-    localStorage.setItem('pos_order_number_data', JSON.stringify({
-      number: orderNumberRef.current,
-      date: new Date().toDateString(),
-    }));
+  const buildReceiptData = (databaseOrderId = null, existingOrderNumber = null) => {
+    const nextOrderNumber = existingOrderNumber ?? orderNumberRef.current;
+    if (existingOrderNumber === null || existingOrderNumber === undefined) {
+      orderNumberRef.current += 1;
+      // Persist the new order number with today's date so it survives refresh but resets at midnight
+      localStorage.setItem('pos_order_number_data', JSON.stringify({
+        number: orderNumberRef.current,
+        date: new Date().toDateString(),
+      }));
+    }
 
     return {
-      id: nextOrderNumber,
+      id: databaseOrderId,
+      order_number: nextOrderNumber,
       table_no: orderData.table_no,
       waiter_name: orderData.waiter_name,
       customer_name: orderData.customer_name,
@@ -929,22 +951,48 @@ const POS = () => {
     };
   };
 
+  const createPendingOrder = async () => {
+    const response = await orderAPI.create({
+      table_no: (orderData.order_type || 'dine_in') === 'dine_in' ? Number(orderData.table_no || 0) : 0,
+      waiter_name: orderData.waiter_name || 'Walk-in',
+      status: 'pending',
+      order_type: orderData.order_type || 'dine_in',
+    });
+    return response.data.order.id;
+  };
+
   const handlePrintReceipt = async () => {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return;
     }
 
-    const receiptData = buildReceiptData();
+    let databaseOrderId = currentHeldOrderDatabaseId;
+    let createdDatabaseOrder = false;
+    try {
+      if (!databaseOrderId) {
+        databaseOrderId = await createPendingOrder();
+        createdDatabaseOrder = true;
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to create order');
+      return;
+    }
+
+    const receiptData = buildReceiptData(databaseOrderId, currentHeldOrderNumber);
     setCompletedOrder(receiptData);
     const printed = await handlePrint(receiptData);
 
     if (printed) {
-      moveCartToHeldOrders();
+      await moveCartToHeldOrders(databaseOrderId, receiptData.order_number);
+    } else {
+      if (createdDatabaseOrder) {
+        await orderAPI.delete(databaseOrderId).catch(() => {});
+      }
     }
   };
 
-  const moveCartToHeldOrders = () => {
+  const moveCartToHeldOrders = async (databaseOrderId = null, orderNumber = null) => {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return false;
@@ -956,15 +1004,31 @@ const POS = () => {
       return false;
     }
 
+    let reservedOrderId = databaseOrderId;
+    if (!reservedOrderId) {
+      reservedOrderId = await createPendingOrder();
+    }
+
+    let heldOrderNumber = orderNumber;
+    if (heldOrderNumber === null || heldOrderNumber === undefined) {
+      heldOrderNumber = orderNumberRef.current;
+      orderNumberRef.current += 1;
+      localStorage.setItem('pos_order_number_data', JSON.stringify({
+        number: orderNumberRef.current,
+        date: new Date().toDateString(),
+      }));
+    }
+
     const heldOrder = {
       id: Date.now(),
-      order_number: Date.now().toString().slice(-4),
+      database_order_id: reservedOrderId,
+      order_number: heldOrderNumber,
       table_no: orderData.table_no,
       waiter_name: orderData.waiter_name,
       customer_name: orderData.customer_name,
       customer_contact: orderData.customer_contact,
       customer_address: orderData.customer_address,
-      items: [...cart],
+      items: cart.map(item => ({ ...item, _heldItem: true })),
       tax: orderData.tax,
       discount: orderData.discount,
       order_type: orderData.order_type || 'dine_in',
@@ -978,17 +1042,23 @@ const POS = () => {
     setCart([]);
     setOrderData({ ...defaultOrderData });
     setCurrentHeldOrderId(null);
+    setCurrentHeldOrderDatabaseId(null);
+    setCurrentHeldOrderNumber(null);
     setCheckoutDialog(false);
     toast.success('Order held successfully');
     return true;
   };
 
-  const holdOrder = () => {
-    moveCartToHeldOrders();
+  const holdOrder = async () => {
+    try {
+      await moveCartToHeldOrders(currentHeldOrderDatabaseId, currentHeldOrderNumber);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to hold order');
+    }
   };
 
   const resumeOrder = (heldOrder) => {
-    setCart(heldOrder.items);
+    setCart(heldOrder.items.map(item => ({ ...item, _heldItem: true })));
     setOrderData({
       ...defaultOrderData,
       table_no: heldOrder.table_no || '',
@@ -1003,6 +1073,8 @@ const POS = () => {
     });
     setHeldOrders(heldOrders.filter(o => o.id !== heldOrder.id));
     setCurrentHeldOrderId(heldOrder.id);
+    setCurrentHeldOrderDatabaseId(heldOrder.database_order_id || null);
+    setCurrentHeldOrderNumber(heldOrder.order_number ?? null);
     setCheckoutDialog(false);
     toast.success('Order resumed. Add more products from the menu and then view order to complete it.');
   };
@@ -1025,7 +1097,9 @@ const POS = () => {
       || (Number.isFinite(candidateId) && candidateId > 2147483647);
 
     try {
-      if (isLocalHeldOrder) {
+      if (cancelCandidate.database_order_id) {
+        await orderAPI.cancel(cancelCandidate.database_order_id, cancelReason.trim());
+      } else if (isLocalHeldOrder) {
         const response = await orderAPI.create({
           table_no: (cancelCandidate.order_type || 'dine_in') === 'dine_in' ? Number(cancelCandidate.table_no || 0) : 0,
           waiter_name: cancelCandidate.waiter_name || 'Walk-in',
@@ -1086,6 +1160,8 @@ const POS = () => {
       setHeldOrders(prev => prev.filter(o => o.id !== cancelCandidate.id));
       if (currentHeldOrderId === cancelCandidate.id) {
         setCurrentHeldOrderId(null);
+        setCurrentHeldOrderDatabaseId(null);
+        setCurrentHeldOrderNumber(null);
       }
       setCancelDialogOpen(false);
       setCancelCandidate(null);
@@ -1104,13 +1180,16 @@ const POS = () => {
       const heldDiscount = heldSubtotal * ((heldOrder.discount ?? 0) / 100);
       const heldTotal = heldSubtotal + heldTax - heldDiscount;
 
-      const orderResponse = await orderAPI.create({
-        table_no: (heldOrder.order_type || 'dine_in') === 'dine_in' ? Number(heldOrder.table_no || 0) : 0,
-        waiter_name: heldOrder.waiter_name || 'Walk-in',
-        status: 'completed',
-        order_type: heldOrder.order_type || 'dine_in',
-      });
-      const orderId = orderResponse.data.order.id;
+      let orderId = heldOrder.database_order_id;
+      if (!orderId) {
+        const orderResponse = await orderAPI.create({
+          table_no: (heldOrder.order_type || 'dine_in') === 'dine_in' ? Number(heldOrder.table_no || 0) : 0,
+          waiter_name: heldOrder.waiter_name || 'Walk-in',
+          status: 'pending',
+          order_type: heldOrder.order_type || 'dine_in',
+        });
+        orderId = orderResponse.data.order.id;
+      }
 
       for (const item of heldItems) {
         if (item.isDeal && Array.isArray(item.dealItems) && item.dealItems.length > 0) {
@@ -1127,6 +1206,7 @@ const POS = () => {
       }
 
       await billingAPI.create({ order_id: orderId, subtotal: heldSubtotal, tax: heldTax, discount: heldDiscount, total: heldTotal, payment_method: heldOrder.payment_method || 'cash' });
+      await orderAPI.updateStatus(orderId, 'completed');
 
       // Remove from held orders
       setHeldOrders(prev => prev.filter(o => o.id !== heldOrder.id));
@@ -1152,7 +1232,21 @@ const POS = () => {
   };
 
   const clearCart = () => {
+    const heldItems = cart.filter(item => item._heldItem);
+    if (heldItems.length > 0) {
+      const newItems = cart.filter(item => !item._heldItem);
+      if (newItems.length === 0) {
+        toast.info('Previously printed items cannot be cleared');
+        return;
+      }
+      setCart(heldItems);
+      toast.success('New items cleared; previously printed items preserved');
+      return;
+    }
+
     setCurrentHeldOrderId(null);
+    setCurrentHeldOrderDatabaseId(null);
+    setCurrentHeldOrderNumber(null);
     setCart([]);
     setOrderData({ ...defaultOrderData });
     localStorage.removeItem('pos_cart');
@@ -1204,14 +1298,16 @@ const POS = () => {
     }
 
     try {
-      const orderResponse = await orderAPI.create({
-        table_no: (orderData.order_type || 'dine_in') === 'dine_in' ? Number(orderData.table_no || 0) : 0,
-        waiter_name: orderData.waiter_name || 'Walk-in',
-        status: 'completed',
-        order_type: orderData.order_type || 'dine_in',
-      });
-
-      const orderId = orderResponse.data.order.id;
+      let orderId = currentHeldOrderDatabaseId;
+      if (!orderId) {
+        const orderResponse = await orderAPI.create({
+          table_no: (orderData.order_type || 'dine_in') === 'dine_in' ? Number(orderData.table_no || 0) : 0,
+          waiter_name: orderData.waiter_name || 'Walk-in',
+          status: 'pending',
+          order_type: orderData.order_type || 'dine_in',
+        });
+        orderId = orderResponse.data.order.id;
+      }
 
       for (const item of cart) {
         if (item.isDeal && Array.isArray(item.dealItems) && item.dealItems.length > 0) {
@@ -1270,8 +1366,9 @@ const POS = () => {
         total: finalTotal,
         payment_method: orderData.payment_method || 'cash',
       });
+      await orderAPI.updateStatus(orderId, 'completed');
 
-      setCompletedOrder(buildReceiptData());
+      setCompletedOrder(buildReceiptData(orderId, currentHeldOrderNumber));
 
       // Clear localStorage after successful order completion
       localStorage.removeItem('pos_cart');
@@ -1280,6 +1377,9 @@ const POS = () => {
       setCart([]);
       setCheckoutDialog(false);
       setOrderData({ ...defaultOrderData });
+      setCurrentHeldOrderId(null);
+      setCurrentHeldOrderDatabaseId(null);
+      setCurrentHeldOrderNumber(null);
       toast.success('Order completed successfully');
     } catch (error) {
       console.error('Order completion error:', error);
@@ -1658,20 +1758,20 @@ const POS = () => {
                         </Box>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}> 
-                        <Button size="small" variant="outlined" onClick={() => updateQuantity(item.id, -1, item.size)} sx={{ minWidth: 32, p: 0.5 }}>
+                        <Button size="small" variant="outlined" disabled={item._heldItem} onClick={() => updateQuantity(item.id, -1, item.size)} sx={{ minWidth: 32, p: 0.5 }}>
                           <Remove fontSize="small" />
                         </Button>
                         <Typography variant="body2" sx={{ minWidth: 30, textAlign: 'center' }}>
                           {item.quantity}
                         </Typography>
-                        <Button size="small" variant="outlined" onClick={() => updateQuantity(item.id, 1, item.size)} sx={{ minWidth: 32, p: 0.5 }}>
+                        <Button size="small" variant="outlined" disabled={item._heldItem} onClick={() => updateQuantity(item.id, 1, item.size)} sx={{ minWidth: 32, p: 0.5 }}>
                           <Add fontSize="small" />
                         </Button>
                       </Box>
                       <Typography variant="subtitle2" sx={{ minWidth: 80, textAlign: 'right' }}>
                         Rs. {formatCurrency(item.price * item.quantity)}
                       </Typography>
-                      <IconButton size="small" color="error" onClick={() => removeFromCart(item.id, item.size)}>
+                      <IconButton size="small" color="error" disabled={item._heldItem} onClick={() => removeFromCart(item.id, item.size)}>
                         <Delete fontSize="small" />
                       </IconButton>
                     </Paper>
@@ -2044,7 +2144,7 @@ const POS = () => {
                         <Box sx={{ bgcolor: isActive ? '#eff6ff' : '#f9fafb', borderBottom: '1px solid #e5e7eb', px: 2, py: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography fontWeight={700} sx={{ color: '#111827', fontSize: 15 }}>
-                              #{heldOrder.order_number || String(heldOrder.id).slice(-4)}
+                              #{heldOrder.database_order_id || heldOrder.order_number || String(heldOrder.id).slice(-4)}
                             </Typography>
                             <Chip
                               icon={<TypeIcon sx={{ fontSize: '13px !important' }} />}
@@ -2151,7 +2251,7 @@ const POS = () => {
                               onClick={async () => {
                                 try {
                                   await completeHeldOrder(heldOrder);
-                                  toast.success(`Order #${heldOrder.order_number || String(heldOrder.id).slice(-4)} paid ✓`);
+                                  toast.success(`Order #${heldOrder.database_order_id || heldOrder.order_number || String(heldOrder.id).slice(-4)} paid ✓`);
                                 } catch {
                                   toast.error('Failed to complete order');
                                 }
