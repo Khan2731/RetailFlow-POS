@@ -1,0 +1,73 @@
+{
+  "name": "pizzahub-pos-desktop",
+  "version": "1.0.0",
+  "description": "PizzaHub POS desktop application",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "build": "npm --prefix frontend run build",
+    "electron:dev": "npm run build && electron .",
+    "dist:win": "node scripts/build-desktop.cjs && electron-builder --win nsis",
+    "dist:dir": "node scripts/build-desktop.cjs && electron-builder --win dir"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "electron": "^36.3.2",
+    "electron-builder": "^26.0.12",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.4"
+  },
+  "build": {
+    "appId": "com.pizzahub.pos",
+    "productName": "PizzaHub POS",
+    "asar": true,
+    "files": [
+      "electron/**/*",
+      "frontend/dist/**/*",
+      "build/icon.ico"
+    ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!.env",
+          "!node_modules/**/*"
+        ]
+      },
+      {
+        "from": "backend/node_modules",
+        "to": "backend/node_modules"
+      },
+      {
+        "from": "backend/.env",
+        "to": "backend/.env"
+      }
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PizzaHub POS",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

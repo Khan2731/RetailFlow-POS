@@ -13,8 +13,14 @@ import {
   Paper,
   Chip,
   CircularProgress,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
-import { orderAPI } from '../services/api';
+import { Visibility } from '@mui/icons-material';
+import { orderAPI, orderItemAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const OrderHistory = () => {
@@ -22,6 +28,9 @@ const OrderHistory = () => {
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [orderItems, setOrderItems] = useState([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const statusColors = {
     pending: 'warning',
@@ -42,6 +51,17 @@ const OrderHistory = () => {
     );
     setFilteredOrders(filtered);
   }, [searchTerm, orders]);
+
+  const handleOpenOrder = async (order) => {
+    try {
+      const response = await orderItemAPI.getByOrderId(order.id);
+      setSelectedOrder(order);
+      setOrderItems(response.data || []);
+      setDialogOpen(true);
+    } catch (error) {
+      toast.error('Failed to load order details');
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -92,8 +112,10 @@ const OrderHistory = () => {
               <TableCell>Table No</TableCell>
               <TableCell>Waiter</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell>Business Date</TableCell>
+              <TableCell>Cancellation Reason</TableCell>
               <TableCell>Order Time</TableCell>
-              <TableCell>Updated</TableCell>
+              <TableCell align="right">Action</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -118,14 +140,75 @@ const OrderHistory = () => {
                       size="small"
                     />
                   </TableCell>
-                  <TableCell>{new Date(order.order_time).toLocaleString()}</TableCell>
-                  <TableCell>{new Date(order.updated_at).toLocaleString()}</TableCell>
+                  <TableCell>{order.business_date || '—'}</TableCell>
+                  <TableCell>{order.cancellation_reason || '—'}</TableCell>
+                  <TableCell>{new Date(order.order_time || order.created_at).toLocaleString()}</TableCell>
+                  <TableCell align="right">
+                    <Button size="small" startIcon={<Visibility />} onClick={() => handleOpenOrder(order)}>
+                      View
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Order Details</DialogTitle>
+        <DialogContent dividers>
+          {selectedOrder && (
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
+                Order #{selectedOrder.id}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Type: {selectedOrder.order_type === 'take_away' ? 'Take Away' : selectedOrder.order_type === 'delivery' ? 'Delivery' : 'Dine In'} • Status: {selectedOrder.status}
+              </Typography>
+              {selectedOrder.status === 'cancelled' && (
+                <Box sx={{ mb: 2, p: 2, bgcolor: '#fff5f5', borderRadius: 2 }}>
+                  <Typography variant="body2"><strong>Cancelled by:</strong> {selectedOrder.cancelled_by_name || '—'}</Typography>
+                  <Typography variant="body2"><strong>Cancellation reason:</strong> {selectedOrder.cancellation_reason || '—'}</Typography>
+                  <Typography variant="body2"><strong>Cancelled at:</strong> {selectedOrder.cancelled_at ? new Date(selectedOrder.cancelled_at).toLocaleString() : '—'}</Typography>
+                  <Typography variant="body2"><strong>Business date:</strong> {selectedOrder.business_date || '—'}</Typography>
+                </Box>
+              )}
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Item</TableCell>
+                      <TableCell>Qty</TableCell>
+                      <TableCell>Price</TableCell>
+                      <TableCell>Total</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {orderItems.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center">No items found</TableCell>
+                      </TableRow>
+                    ) : (
+                      orderItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.product_name || item.item_name || `Item ${item.product_id}`}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell>Rs. {Number(item.price || 0).toFixed(2)}</TableCell>
+                          <TableCell>Rs. {Number(item.line_total || 0).toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

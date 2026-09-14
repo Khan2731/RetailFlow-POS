@@ -8,8 +8,8 @@ const Navbar = ({ onMenuClick, title, fullWidth = false }) => {
       position="fixed"
       sx={{
         zIndex: (theme) => theme.zIndex.drawer + 1,
-        ml: fullWidth ? 0 : { sm: '280px' },
-        width: fullWidth ? '100%' : { sm: 'calc(100% - 280px)' },
+        ml: 0,
+        width: '100%',
       }}
     >
       <Toolbar>

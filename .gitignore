@@ -29,6 +29,7 @@ frontend/dist/
 frontend/.vite/
 frontend/.cache/
 backend/.cache/
+release/
 
 # Databases and local data
 *.sqlite

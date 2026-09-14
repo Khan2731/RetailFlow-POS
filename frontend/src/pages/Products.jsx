@@ -22,12 +22,11 @@ import {
   InputLabel,
   IconButton,
   CircularProgress,
-  Switch,
-  FormControlLabel,
   Grid,
 } from '@mui/material';
-import { Edit, Delete, Add, LocalOffer } from '@mui/icons-material';
+import { Edit, Delete, Add, LocalOffer, RemoveCircleOutline } from '@mui/icons-material';
 import { productAPI } from '../services/api';
+import { getProductDisplayPrice } from '../utils/productPricing';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -42,16 +41,13 @@ const Products = () => {
   const [formData, setFormData] = useState({ 
     name: '', 
     category: '', 
-    base_price: '', 
-    has_sizes: false,
-    small_price: '',
-    medium_price: '',
-    large_price: ''
+    base_price: '',
+    variants: [],
   });
   const { isAdmin } = useAuth();
   const adminMode = isAdmin();
 
-  const categories = ['Pizza', 'Salad', 'Appetizer', 'Beverage', 'Dessert'];
+  const categories = ['Pizza',  'Rolls & Shawarma', 'Burgers', 'Sides','Refresher', 'Ice Creams Shakes','Ice Creams','Margaritas','Milk Shake','Beverage', 'Dessert','Pasta & Lasagna','Fried Chicken'];
 
   useEffect(() => {
     fetchProducts();
@@ -89,24 +85,22 @@ const Products = () => {
     if (product) {
       setEditingProduct(product);
       setFormData({ 
-        name: product.name, 
-        category: product.category, 
-        base_price: product.base_price || product.price,
-        has_sizes: product.has_sizes === 1 || product.has_sizes === true,
-        small_price: product.small_price || '',
-        medium_price: product.medium_price || '',
-        large_price: product.large_price || ''
+        name: product.name,
+        category: product.category,
+        base_price: product.base_price || product.price || '',
+        variants: Array.isArray(product.variants) ? product.variants.map((variant) => ({
+          id: variant.id || null,
+          size_name: variant.size_name || '',
+          price: variant.price ?? '',
+        })) : [],
       });
     } else {
       setEditingProduct(null);
       setFormData({ 
-        name: '', 
-        category: '', 
-        base_price: '', 
-        has_sizes: false,
-        small_price: '',
-        medium_price: '',
-        large_price: ''
+        name: '',
+        category: '',
+        base_price: '',
+        variants: [],
       });
     }
     setOpenDialog(true);
@@ -116,20 +110,37 @@ const Products = () => {
     setOpenDialog(false);
     setEditingProduct(null);
     setFormData({ 
-      name: '', 
-      category: '', 
-      base_price: '', 
-      has_sizes: false,
-      small_price: '',
-      medium_price: '',
-      large_price: ''
+      name: '',
+      category: '',
+      base_price: '',
+      variants: [],
     });
   };
 
+  const addVariantRow = () => {
+    setFormData((prev) => ({ ...prev, variants: [...prev.variants, { size_name: '', price: '' }] }));
+  };
+
+  const updateVariant = (index, field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      variants: prev.variants.map((variant, variantIndex) => (
+        variantIndex === index ? { ...variant, [field]: value } : variant
+      )),
+    }));
+  };
+
+  const removeVariant = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      variants: prev.variants.filter((_, variantIndex) => variantIndex !== index),
+    }));
+  };
+
   const getBasePrice = () => {
-    if (formData.has_sizes) {
-      const prices = [formData.small_price, formData.medium_price, formData.large_price]
-        .map((value) => parseFloat(value))
+    if (formData.variants.length > 0) {
+      const prices = formData.variants
+        .map((variant) => parseFloat(variant.price))
         .filter((price) => !Number.isNaN(price));
       return prices.length > 0 ? Math.min(...prices) : '';
     }
@@ -144,10 +155,13 @@ const Products = () => {
         name: formData.name,
         category: formData.category,
         base_price: getBasePrice(),
-        has_sizes: formData.has_sizes,
-        small_price: formData.has_sizes ? formData.small_price : null,
-        medium_price: formData.has_sizes ? formData.medium_price : null,
-        large_price: formData.has_sizes ? formData.large_price : null,
+        has_sizes: formData.variants.length > 0,
+        variants: formData.variants
+          .filter((variant) => variant.size_name && variant.price !== '')
+          .map((variant) => ({
+            size_name: variant.size_name,
+            price: variant.price,
+          })),
       };
 
       if (editingProduct) {
@@ -187,14 +201,12 @@ const Products = () => {
     );
   }
 
-  const getProductDisplayPrice = (product) => {
-    if (product.has_sizes) {
-      const priceValues = [product.small_price, product.medium_price, product.large_price]
-        .map((value) => parseFloat(value))
-        .filter((price) => !Number.isNaN(price));
-      return priceValues.length ? Math.min(...priceValues) : parseFloat(product.base_price || product.price || 0);
-    }
-    return parseFloat(product.base_price || product.price || 0);
+  const getProductDisplayPriceValue = (product) => getProductDisplayPrice(product);
+
+  const getSizePriceValue = (product, sizeKey) => {
+    const value = product?.[sizeKey];
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
   };
 
   return (
@@ -261,14 +273,16 @@ const Products = () => {
                 <TableCell>{product.name}</TableCell>
                 <TableCell>{product.category}</TableCell>
                 <TableCell>
-                  {product.has_sizes ? (
+                  {Array.isArray(product.variants) && product.variants.length > 0 ? (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                      <Typography variant="body2">S: Rs. {parseFloat(product.small_price || 0).toFixed(2)}</Typography>
-                      <Typography variant="body2">M: Rs. {parseFloat(product.medium_price || 0).toFixed(2)}</Typography>
-                      <Typography variant="body2">L: Rs. {parseFloat(product.large_price || 0).toFixed(2)}</Typography>
+                      {product.variants.map((variant) => (
+                        <Typography key={`${product.id}-${variant.size_name}`} variant="body2">
+                          {variant.size_name}: Rs. {Number(variant.price || 0).toFixed(2)}
+                        </Typography>
+                      ))}
                     </Box>
                   ) : (
-                    `Rs. ${getProductDisplayPrice(product).toFixed(2)}`
+                    `Rs. ${getProductDisplayPriceValue(product).toFixed(2)}`
                   )}
                 </TableCell>
                 {adminMode && (
@@ -317,69 +331,53 @@ const Products = () => {
             </FormControl>
             
             {formData.category === 'Pizza' && (
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.has_sizes}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        has_sizes: e.target.checked,
-                        small_price: e.target.checked ? formData.small_price : '',
-                        medium_price: e.target.checked ? formData.medium_price : '',
-                        large_price: e.target.checked ? formData.large_price : '',
-                      })
-                    }
-                  />
-                }
-                label="Has Size Options"
-                sx={{ mt: 2 }}
-              />
+              <Box sx={{ mt: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                  <Typography variant="subtitle1">Pizza Variants</Typography>
+                  <Button variant="outlined" size="small" onClick={addVariantRow}>Add Variant</Button>
+                </Box>
+                {formData.variants.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">Add at least one size/price variant for pizza products.</Typography>
+                ) : (
+                  <Grid container spacing={2}>
+                    {formData.variants.map((variant, index) => (
+                      <Grid item xs={12} md={6} key={`${variant.size_name || 'new'}-${index}`}>
+                        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="subtitle2">Variant {index + 1}</Typography>
+                            <IconButton size="small" color="error" onClick={() => removeVariant(index)}>
+                              <RemoveCircleOutline />
+                            </IconButton>
+                          </Box>
+                          <TextField
+                            margin="dense"
+                            label="Size Name"
+                            fullWidth
+                            variant="outlined"
+                            value={variant.size_name}
+                            onChange={(e) => updateVariant(index, 'size_name', e.target.value)}
+                            required
+                          />
+                          <TextField
+                            margin="dense"
+                            label="Price"
+                            type="number"
+                            fullWidth
+                            variant="outlined"
+                            value={variant.price}
+                            onChange={(e) => updateVariant(index, 'price', e.target.value)}
+                            required
+                            inputProps={{ step: '0.01', min: '0' }}
+                          />
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                )}
+              </Box>
             )}
-            
-            {formData.category === 'Pizza' && formData.has_sizes ? (
-              <Grid container spacing={2} sx={{ mt: 2 }}>
-                <Grid item xs={4}>
-                  <TextField
-                    margin="dense"
-                    label="Small Price"
-                    type="number"
-                    fullWidth
-                    variant="outlined"
-                    value={formData.small_price}
-                    onChange={(e) => setFormData({ ...formData, small_price: e.target.value })}
-                    required
-                    inputProps={{ step: '0.01', min: '0' }}
-                  />
-                </Grid>
-                <Grid item xs={4}>
-                  <TextField
-                    margin="dense"
-                    label="Medium Price"
-                    type="number"
-                    fullWidth
-                    variant="outlined"
-                    value={formData.medium_price}
-                    onChange={(e) => setFormData({ ...formData, medium_price: e.target.value })}
-                    required
-                    inputProps={{ step: '0.01', min: '0' }}
-                  />
-                </Grid>
-                <Grid item xs={4}>
-                  <TextField
-                    margin="dense"
-                    label="Large Price"
-                    type="number"
-                    fullWidth
-                    variant="outlined"
-                    value={formData.large_price}
-                    onChange={(e) => setFormData({ ...formData, large_price: e.target.value })}
-                    required
-                    inputProps={{ step: '0.01', min: '0' }}
-                  />
-                </Grid>
-              </Grid>
-            ) : (
+
+            {formData.category !== 'Pizza' && (
               <TextField
                 margin="dense"
                 label="Base Price"
@@ -400,7 +398,7 @@ const Products = () => {
               {editingProduct ? 'Update' : 'Create'}
             </Button>
           </DialogActions>
-        </form>
+        </form> 
       </Dialog>
     </Container>
   );

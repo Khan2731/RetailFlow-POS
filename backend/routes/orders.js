@@ -8,6 +8,7 @@ const {
   createOrder,
   updateOrder,
   updateOrderStatus,
+  cancelOrder,
   deleteOrder
 } = require('../controllers/orderController');
 const { auth } = require('../middleware/auth');
@@ -20,6 +21,7 @@ router.get('/:id', getOrderById);
 router.post('/', auth, orderValidation, createOrder);
 router.put('/:id', auth, orderValidation, updateOrder);
 router.patch('/:id/status', auth, updateOrderStatus);
+router.post('/:id/cancel', auth, cancelOrder);
 router.delete('/:id', auth, deleteOrder);
 
 module.exports = router;

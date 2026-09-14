@@ -4,6 +4,7 @@
 INSERT INTO Products (name, category, base_price) VALUES
 ('Margherita Pizza', 'Pizza', 1200),
 ('Pepperoni Pizza', 'Pizza', 1400),
+('Calzone Pizza', 'Pizza', 1400),
 ('Hawaiian Pizza', 'Pizza', 1500),
 ('BBQ Chicken Pizza', 'Pizza', 1600),
 ('Vegetarian Pizza', 'Pizza', 1300),

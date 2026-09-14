@@ -10,8 +10,21 @@ CREATE TABLE IF NOT EXISTS Products (
     small_price NUMERIC(10, 2),
     medium_price NUMERIC(10, 2),
     large_price NUMERIC(10, 2),
+    xl_price NUMERIC(10, 2),
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()
+);
+
+-- Product variants table
+CREATE TABLE IF NOT EXISTS product_variants (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER NOT NULL,
+    size_name TEXT NOT NULL,
+    price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    FOREIGN KEY (product_id) REFERENCES Products(id) ON DELETE CASCADE
 );
 
 -- Deals table
@@ -43,6 +56,12 @@ CREATE TABLE IF NOT EXISTS Orders (
     waiter_name TEXT NOT NULL,
     order_time TIMESTAMP DEFAULT now(),
     status TEXT DEFAULT 'pending',
+    order_type TEXT DEFAULT 'dine_in',
+    business_date DATE,
+    shift_id INTEGER,
+    cancellation_reason TEXT,
+    cancelled_by INTEGER,
+    cancelled_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()
 );
@@ -100,6 +119,7 @@ CREATE TABLE IF NOT EXISTS Inventory (
     item_name TEXT NOT NULL UNIQUE,
     quantity INTEGER NOT NULL DEFAULT 0,
     unit TEXT NOT NULL,
+    price NUMERIC(10, 2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()
 );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline, Box } from '@mui/material';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -8,7 +8,6 @@ import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
-import Orders from './pages/Orders';
 import Billing from './pages/Billing';
 import OrderHistory from './pages/OrderHistory';
 import Inventory from './pages/Inventory';
@@ -17,6 +16,16 @@ import Delivery from './pages/Delivery';
 import POS from './pages/POS';
 import Deals from './pages/Deals';
 import Expenses from './pages/Expenses';
+import DailyAttendance from './pages/DailyAttendance';
+import AttendanceHistory from './pages/AttendanceHistory';
+import AttendanceReport from './pages/AttendanceReport';
+import SalaryAdvances from './pages/SalaryAdvances';
+import PendingRecoveries from './pages/PendingRecoveries';
+import MonthlyPayroll from './pages/MonthlyPayroll';
+import SalaryHistory from './pages/SalaryHistory';
+import Vendors from './pages/Vendors';
+import InventoryEnhanced from './pages/InventoryEnhanced';
+import CancelledOrders from './pages/CancelledOrders';
 
 const theme = createTheme({
   palette: {
@@ -30,13 +39,21 @@ const theme = createTheme({
 });
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, isAdmin, isCashier } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <div>Loading...</div>;
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  if (!isAuthenticated) return <Navigate to="/login" />;
+
+  // Role-based access: cashiers may only access the POS page
+  if (isCashier() && !location.pathname.startsWith('/pos')) {
+    return <Navigate to="/pos" />;
+  }
+
+  return children;
 };
 
 const Layout = ({ children, title, showSidebar = true, fullWidth = false }) => {
@@ -103,16 +120,6 @@ const AppContent = () => {
           }
         />
         <Route
-          path="/orders"
-          element={
-            <ProtectedRoute>
-              <Layout title="Orders">
-                <Orders />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/billing"
           element={
             <ProtectedRoute>
@@ -137,7 +144,7 @@ const AppContent = () => {
           element={
             <ProtectedRoute>
               <Layout title="Inventory">
-                <Inventory />
+                <InventoryEnhanced />
               </Layout>
             </ProtectedRoute>
           }
@@ -178,6 +185,96 @@ const AppContent = () => {
             <ProtectedRoute>
               <Layout title="Expenses">
                 <Expenses />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/attendance/daily"
+          element={
+            <ProtectedRoute>
+              <Layout title="Daily Attendance">
+                <DailyAttendance />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/attendance/history"
+          element={
+            <ProtectedRoute>
+              <Layout title="Attendance History">
+                <AttendanceHistory />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/attendance/report"
+          element={
+            <ProtectedRoute>
+              <Layout title="Monthly Attendance Report">
+                <AttendanceReport />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/salary-advances"
+          element={
+            <ProtectedRoute>
+              <Layout title="Salary Advances">
+                <SalaryAdvances />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/salary-advances/pending"
+          element={
+            <ProtectedRoute>
+              <Layout title="Pending Recoveries">
+                <PendingRecoveries />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payroll/monthly"
+          element={
+            <ProtectedRoute>
+              <Layout title="Monthly Payroll">
+                <MonthlyPayroll />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payroll/history"
+          element={
+            <ProtectedRoute>
+              <Layout title="Salary History">
+                <SalaryHistory />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vendors"
+          element={
+            <ProtectedRoute>
+              <Layout title="Vendor Management">
+                <Vendors />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cancelled-orders"
+          element={
+            <ProtectedRoute>
+              <Layout title="Cancelled Orders">
+                <CancelledOrders />
               </Layout>
             </ProtectedRoute>
           }

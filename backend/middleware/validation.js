@@ -12,50 +12,34 @@ const productValidation = [
   body('name').trim().notEmpty().withMessage('Product name is required'),
   body('category').trim().notEmpty().withMessage('Category is required'),
   body('base_price').custom((value, { req }) => {
-    if (req.body.has_sizes) {
+    const variants = Array.isArray(req.body.variants) ? req.body.variants : [];
+    const hasValidVariants = variants.some((variant) => {
+      const sizeName = typeof variant?.size_name === 'string' ? variant.size_name.trim() : '';
+      const priceValue = parseFloat(variant?.price);
+      return sizeName && Number.isFinite(priceValue) && priceValue >= 0 && priceValue > 0;
+    });
+
+    if (hasValidVariants) {
       return true;
     }
+
     if (value === undefined || value === null || value === '') {
-      throw new Error('Base price is required');
+      throw new Error('Base price is required for non-variant products');
     }
     if (isNaN(parseFloat(value)) || parseFloat(value) < 0) {
       throw new Error('Base price must be a positive number');
     }
     return true;
   }),
-  body('small_price').custom((value, { req }) => {
-    if (!req.body.has_sizes) {
+  body('variants').optional().isArray().withMessage('Variants must be an array'),
+  body('variants.*.size_name').optional().isString().notEmpty().withMessage('Each variant must have a size name'),
+  body('variants.*.price').optional().custom((value) => {
+    if (value === undefined || value === null || value === '') {
       return true;
     }
-    if (value === undefined || value === null || value === '') {
-      throw new Error('Small price is required when size options are enabled');
-    }
-    if (isNaN(parseFloat(value)) || parseFloat(value) < 0) {
-      throw new Error('Small price must be a positive number');
-    }
-    return true;
-  }),
-  body('medium_price').custom((value, { req }) => {
-    if (!req.body.has_sizes) {
-      return true;
-    }
-    if (value === undefined || value === null || value === '') {
-      throw new Error('Medium price is required when size options are enabled');
-    }
-    if (isNaN(parseFloat(value)) || parseFloat(value) < 0) {
-      throw new Error('Medium price must be a positive number');
-    }
-    return true;
-  }),
-  body('large_price').custom((value, { req }) => {
-    if (!req.body.has_sizes) {
-      return true;
-    }
-    if (value === undefined || value === null || value === '') {
-      throw new Error('Large price is required when size options are enabled');
-    }
-    if (isNaN(parseFloat(value)) || parseFloat(value) < 0) {
-      throw new Error('Large price must be a positive number');
+    const parsedValue = parseFloat(value);
+    if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+      throw new Error('Each variant price must be a non-negative number');
     }
     return true;
   }),
@@ -63,8 +47,19 @@ const productValidation = [
 ];
 
 const orderValidation = [
-  body('table_no').isInt({ min: 1 }).withMessage('Table number must be a positive integer'),
-  body('waiter_name').trim().notEmpty().withMessage('Waiter name is required'),
+  body('order_type')
+    .optional()
+    .isIn(['dine_in', 'take_away', 'delivery'])
+    .withMessage('Invalid order type'),
+  body('table_no')
+    .if((value, { req }) => (req.body.order_type || 'dine_in') === 'dine_in')
+    .isInt({ min: 1 })
+    .withMessage('Table number must be a positive integer'),
+  body('waiter_name')
+    .if((value, { req }) => (req.body.order_type || 'dine_in') === 'dine_in')
+    .trim()
+    .notEmpty()
+    .withMessage('Waiter name is required'),
   validateRequest
 ];
 
@@ -109,6 +104,15 @@ const inventoryValidation = [
   body('item_name').trim().notEmpty().withMessage('Item name is required'),
   body('quantity').isInt({ min: 0 }).withMessage('Quantity must be a non-negative integer'),
   body('unit').trim().notEmpty().withMessage('Unit is required'),
+  body('price').custom((value) => {
+    if (value === undefined || value === null || value === '') {
+      throw new Error('Price is required');
+    }
+    if (isNaN(parseFloat(value)) || parseFloat(value) < 0) {
+      throw new Error('Price must be a positive number');
+    }
+    return true;
+  }),
   validateRequest
 ];
 

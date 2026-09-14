@@ -34,7 +34,7 @@ const Inventory = () => {
   const [showLowStock, setShowLowStock] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [formData, setFormData] = useState({ item_name: '', quantity: '', unit: '' });
+  const [formData, setFormData] = useState({ item_name: '', quantity: '', unit: '', price: '' });
   const { isAdmin } = useAuth();
 
   useEffect(() => {
@@ -72,10 +72,10 @@ const Inventory = () => {
   const handleOpenDialog = (item = null) => {
     if (item) {
       setEditingItem(item);
-      setFormData({ item_name: item.item_name, quantity: item.quantity, unit: item.unit });
+      setFormData({ item_name: item.item_name, quantity: item.quantity, unit: item.unit, price: item.price ?? '' });
     } else {
       setEditingItem(null);
-      setFormData({ item_name: '', quantity: '', unit: '' });
+      setFormData({ item_name: '', quantity: '', unit: '', price: '' });
     }
     setOpenDialog(true);
   };
@@ -83,24 +83,30 @@ const Inventory = () => {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingItem(null);
-    setFormData({ item_name: '', quantity: '', unit: '' });
+    setFormData({ item_name: '', quantity: '', unit: '', price: '' });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     try {
+      const parsedPrice = parseFloat(formData.price);
+      if (Number.isNaN(parsedPrice)) {
+        toast.error('Please enter a valid price in rupees');
+        return;
+      }
+
+      const payload = {
+        ...formData,
+        quantity: parseInt(formData.quantity, 10),
+        price: parsedPrice,
+      };
+
       if (editingItem) {
-        await inventoryAPI.update(editingItem.id, {
-          ...formData,
-          quantity: parseInt(formData.quantity),
-        });
+        await inventoryAPI.update(editingItem.id, payload);
         toast.success('Inventory item updated successfully');
       } else {
-        await inventoryAPI.create({
-          ...formData,
-          quantity: parseInt(formData.quantity),
-        });
+        await inventoryAPI.create(payload);
         toast.success('Inventory item created successfully');
       }
       handleCloseDialog();
@@ -190,6 +196,7 @@ const Inventory = () => {
               <TableCell>Item Name</TableCell>
               <TableCell>Quantity</TableCell>
               <TableCell>Unit</TableCell>
+              <TableCell>Price</TableCell>
               <TableCell>Status</TableCell>
               {isAdmin && <TableCell align="center">Quick Adjust</TableCell>}
               {isAdmin && <TableCell align="right">Actions</TableCell>}
@@ -201,6 +208,7 @@ const Inventory = () => {
                 <TableCell>{item.item_name}</TableCell>
                 <TableCell>{item.quantity}</TableCell>
                 <TableCell>{item.unit}</TableCell>
+                <TableCell>Rs. {parseFloat(item.price || 0).toFixed(2)}</TableCell>
                 <TableCell>
                   {item.quantity <= 10 ? (
                     <Chip label="Low Stock" color="error" size="small" />
@@ -276,6 +284,17 @@ const Inventory = () => {
               onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
               required
               placeholder="e.g., kg, liters, pieces"
+            />
+            <TextField
+              margin="dense"
+              label="Price (Rs.)"
+              type="number"
+              fullWidth
+              variant="outlined"
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              required
+              inputProps={{ step: '0.01', min: '0' }}
             />
           </DialogContent>
           <DialogActions>

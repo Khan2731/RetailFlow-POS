@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -28,7 +28,12 @@ import { useReactToPrint } from 'react-to-print';
 import { billingAPI, orderAPI, orderItemAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
-const Invoice = ({ billing, order, orderItems, ref }) => (
+const formatCurrency = (value, decimals = 2) => {
+  const numericValue = Number(value ?? 0);
+  return Number.isFinite(numericValue) ? numericValue.toFixed(decimals) : '0.00';
+};
+
+const Invoice = React.forwardRef(({ billing, order, orderItems }, ref) => (
   <div ref={ref} style={{ padding: '20px', background: 'white' }}>
     <Typography variant="h4" gutterBottom>PizzaHub POS</Typography>
     <Typography variant="h6" gutterBottom>Invoice #{billing.id}</Typography>
@@ -68,14 +73,9 @@ const Invoice = ({ billing, order, orderItems, ref }) => (
       <Typography><strong>Payment Method:</strong> {billing.payment_method}</Typography>
     </Box>
   </div>
-);
+));
 
 const Billing = () => {
-  const formatCurrency = (value, decimals = 2) => {
-    const numericValue = Number(value ?? 0);
-    return Number.isFinite(numericValue) ? numericValue.toFixed(decimals) : '0.00';
-  };
-
   const [billingRecords, setBillingRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
@@ -92,8 +92,11 @@ const Billing = () => {
     total: 0,
     payment_method: 'cash',
   });
-  const printRef = React.useRef();
-  const handlePrint = useReactToPrint({ contentRef: printRef });
+  const printRef = useRef();
+  const handlePrint = useReactToPrint({
+    content: () => printRef.current,
+    pageStyle: '@page { size: auto; margin: 10mm; }',
+  });
 
   useEffect(() => {
     fetchBillingRecords();

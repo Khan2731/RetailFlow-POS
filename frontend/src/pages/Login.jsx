@@ -128,7 +128,7 @@ const Login = () => {
             Enter your manager or cashier account to continue.
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Demo: john / password123
+           
           </Typography>
         </Box>
       </Paper>

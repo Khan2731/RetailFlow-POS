@@ -34,11 +34,12 @@ const getLowStockItems = async (req, res) => {
 };
 
 const createInventory = async (req, res) => {
-  const { item_name, quantity, unit } = req.body;
-  const sql = 'INSERT INTO Inventory (item_name, quantity, unit) VALUES ($1, $2, $3) RETURNING id';
+  const { item_name, quantity, unit, price } = req.body;
+  const parsedPrice = price !== undefined && price !== null ? parseFloat(price) : null;
+  const sql = 'INSERT INTO Inventory (item_name, quantity, unit, price) VALUES ($1, $2, $3, $4) RETURNING id';
   try {
-    const result = await db.query(sql, [item_name, quantity, unit]);
-    res.status(201).json({ message: 'Inventory item created successfully', inventory: { id: result.rows[0].id, item_name, quantity, unit } });
+    const result = await db.query(sql, [item_name, quantity, unit, parsedPrice]);
+    res.status(201).json({ message: 'Inventory item created successfully', inventory: { id: result.rows[0].id, item_name, quantity, unit, price: parsedPrice } });
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'Item already exists' });
     res.status(500).json({ error: err.message });
@@ -46,12 +47,13 @@ const createInventory = async (req, res) => {
 };
 
 const updateInventory = async (req, res) => {
-  const { item_name, quantity, unit } = req.body;
-  const sql = 'UPDATE Inventory SET item_name = $1, quantity = $2, unit = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING id';
+  const { item_name, quantity, unit, price } = req.body;
+  const parsedPrice = price !== undefined && price !== null ? parseFloat(price) : null;
+  const sql = 'UPDATE Inventory SET item_name = $1, quantity = $2, unit = $3, price = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING id';
   try {
-    const result = await db.query(sql, [item_name, quantity, unit, req.params.id]);
+    const result = await db.query(sql, [item_name, quantity, unit, parsedPrice, req.params.id]);
     if (!result.rows || result.rows.length === 0) return res.status(404).json({ error: 'Inventory item not found' });
-    res.json({ message: 'Inventory updated successfully', inventory: { id: req.params.id, item_name, quantity, unit } });
+    res.json({ message: 'Inventory updated successfully', inventory: { id: req.params.id, item_name, quantity, unit, price: parsedPrice } });
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'Item name already exists' });
     res.status(500).json({ error: err.message });

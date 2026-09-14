@@ -27,6 +27,7 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Add, LocalOffer } from '@mui/icons-material';
 import { dealAPI, productAPI } from '../services/api';
+import { getProductDisplayPrice } from '../utils/productPricing';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -45,6 +46,15 @@ const Deals = () => {
   });
   const { isAdmin } = useAuth();
   const adminMode = isAdmin();
+
+  const formatSizeLabel = (size) => {
+    if (!size) return '';
+    const normalizedSize = String(size).toLowerCase();
+    if (normalizedSize === 'xl') return 'XL';
+    if (normalizedSize === 'large') return 'Large';
+    if (normalizedSize === 'medium') return 'Medium';
+    return 'Small';
+  };
 
   useEffect(() => {
     fetchDeals();
@@ -248,7 +258,7 @@ const Deals = () => {
                       <Chip
                         key={index}
                         size="small"
-                        label={`${item.product_name}${item.size ? ` (${item.size})` : ''} x${item.quantity}`}
+                        label={`${item.product_name}${item.size ? ` (${formatSizeLabel(item.size)})` : ''} x${item.quantity}`}
                         variant="outlined"
                       />
                     ))}
@@ -344,7 +354,7 @@ const Deals = () => {
                         >
                           {products.map((product) => (
                             <MenuItem key={product.id} value={product.id}>
-                              {product.name} - {product.has_sizes ? `S/M/L` : `Rs. ${parseFloat(product.base_price || product.price || 0).toFixed(2)}`}
+                              {product.name} - {product.has_sizes ? `S/M/L/XL` : `Rs. ${getProductDisplayPrice(product).toFixed(2)}`}
                             </MenuItem>
                           ))}
                         </TextField>
@@ -362,6 +372,7 @@ const Deals = () => {
                           <MenuItem value="small">Small</MenuItem>
                           <MenuItem value="medium">Medium</MenuItem>
                           <MenuItem value="large">Large</MenuItem>
+                          <MenuItem value="xl">XL</MenuItem>
                         </TextField>
                       </Grid>
                     )}

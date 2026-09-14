@@ -22,16 +22,21 @@ import {
   InputLabel,
   IconButton,
   CircularProgress,
+  Chip,
 } from '@mui/material';
-import { Add, Delete, Edit } from '@mui/icons-material';
+import { Add, Delete, Edit, Search } from '@mui/icons-material';
 import { expenseAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const Expenses = () => {
   const [expenses, setExpenses] = useState([]);
+  const [filteredExpenses, setFilteredExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [rangeFilter, setRangeFilter] = useState('all');
   const [formData, setFormData] = useState({
     category: '',
     description: '',
@@ -43,10 +48,35 @@ const Expenses = () => {
     fetchExpenses();
   }, []);
 
+  useEffect(() => {
+    const lowerSearch = searchTerm.trim().toLowerCase();
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - 6); weekStart.setHours(0, 0, 0, 0);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const filtered = expenses.filter((expense) => {
+      const expenseDate = new Date(expense.expense_date || Date.now());
+      const matchesSearch = !lowerSearch || [expense.category, expense.description, String(expense.amount)].join(' ').toLowerCase().includes(lowerSearch);
+      const matchesCategory = categoryFilter === 'all' || expense.category === categoryFilter;
+      const matchesRange = (() => {
+        if (rangeFilter === 'today') return expenseDate >= todayStart;
+        if (rangeFilter === 'week') return expenseDate >= weekStart;
+        if (rangeFilter === 'month') return expenseDate >= monthStart;
+        return true;
+      })();
+      return matchesSearch && matchesCategory && matchesRange;
+    });
+
+    setFilteredExpenses(filtered);
+  }, [expenses, searchTerm, categoryFilter, rangeFilter]);
+
   const fetchExpenses = async () => {
     try {
       const response = await expenseAPI.getAll();
-      setExpenses(response.data);
+      const data = Array.isArray(response.data) ? response.data : [];
+      setExpenses(data);
+      setFilteredExpenses(data);
     } catch (error) {
       console.error(error);
       toast.error('Failed to fetch expenses');
@@ -62,7 +92,7 @@ const Expenses = () => {
         category: expense.category,
         description: expense.description,
         amount: expense.amount,
-        expense_date: expense.expense_date.slice(0, 16),
+        expense_date: expense.expense_date ? expense.expense_date.slice(0, 16) : '',
       });
     } else {
       setEditingExpense(null);
@@ -112,6 +142,9 @@ const Expenses = () => {
     }
   };
 
+  const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+  const categories = ['all', ...Array.from(new Set(expenses.map((expense) => expense.category).filter(Boolean)))];
+
   if (loading) {
     return (
       <Container>
@@ -124,12 +157,44 @@ const Expenses = () => {
 
   return (
     <Container maxWidth={false} sx={{ mt: 4, mb: 4, px: { xs: 2, md: 4 }, width: '100%' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Typography variant="h4">Expenses</Typography>
         <Button variant="contained" startIcon={<Add />} onClick={() => handleOpenDialog()}>
           Add Expense
         </Button>
       </Box>
+
+      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+        <TextField size="small" label="Search expenses" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} sx={{ minWidth: 260, flexGrow: 1 }} InputProps={{ startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} /> }} />
+        <FormControl size="small" sx={{ minWidth: 170 }}>
+          <InputLabel>Category</InputLabel>
+          <Select value={categoryFilter} label="Category" onChange={(e) => setCategoryFilter(e.target.value)}>
+            <MenuItem value="all">All</MenuItem>
+            {categories.filter((category) => category !== 'all').map((category) => (
+              <MenuItem key={category} value={category}>{category}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel>Range</InputLabel>
+          <Select value={rangeFilter} label="Range" onChange={(e) => setRangeFilter(e.target.value)}>
+            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="today">Today</MenuItem>
+            <MenuItem value="week">Week</MenuItem>
+            <MenuItem value="month">Month</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Expense Summary</Typography>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Chip label={`${filteredExpenses.length} entries`} color="primary" variant="outlined" />
+            <Chip label={`Total Rs. ${totalExpenses.toFixed(2)}`} color="success" variant="outlined" />
+          </Box>
+        </Box>
+      </Paper>
 
       <TableContainer component={Paper}>
         <Table>
@@ -143,7 +208,7 @@ const Expenses = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {expenses.map((expense) => (
+            {filteredExpenses.map((expense) => (
               <TableRow key={expense.id}>
                 <TableCell>{expense.category}</TableCell>
                 <TableCell>{expense.description}</TableCell>
@@ -167,47 +232,14 @@ const Expenses = () => {
         <DialogTitle>{editingExpense ? 'Edit Expense' : 'Add Expense'}</DialogTitle>
         <form onSubmit={handleSubmit}>
           <DialogContent>
-            <TextField
-              fullWidth
-              label="Category"
-              margin="dense"
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              required
-            />
-            <TextField
-              fullWidth
-              label="Description"
-              margin="dense"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              multiline
-              minRows={2}
-            />
-            <TextField
-              fullWidth
-              label="Amount"
-              margin="dense"
-              type="number"
-              inputProps={{ min: 0, step: 0.01 }}
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              required
-            />
-            <TextField
-              fullWidth
-              label="Expense Date"
-              margin="dense"
-              type="datetime-local"
-              value={formData.expense_date}
-              onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })}
-            />
+            <TextField fullWidth label="Category" margin="dense" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} required />
+            <TextField fullWidth label="Description" margin="dense" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} multiline minRows={2} />
+            <TextField fullWidth label="Amount" margin="dense" type="number" inputProps={{ min: 0, step: 0.01 }} value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
+            <TextField fullWidth label="Expense Date" margin="dense" type="datetime-local" value={formData.expense_date} onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })} />
           </DialogContent>
           <DialogActions>
             <Button onClick={handleCloseDialog}>Cancel</Button>
-            <Button type="submit" variant="contained">
-              Save
-            </Button>
+            <Button type="submit" variant="contained">Save</Button>
           </DialogActions>
         </form>
       </Dialog>

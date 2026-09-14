@@ -57,7 +57,14 @@ export const orderAPI = {
   create: (data) => api.post('/orders', data),
   update: (id, data) => api.put(`/orders/${id}`, data),
   updateStatus: (id, status) => api.patch(`/orders/${id}/status`, { status }),
+  cancel: (id, reason) => api.post(`/orders/${id}/cancel`, { reason }),
   delete: (id) => api.delete(`/orders/${id}`),
+};
+
+export const shiftAPI = {
+  getActive: () => api.get('/shifts/active'),
+  start: (data) => api.post('/shifts/start', data),
+  close: (data) => api.post('/shifts/close', data),
 };
 
 export const orderItemAPI = {
@@ -126,6 +133,57 @@ export const expenseAPI = {
   create: (data) => api.post('/expenses', data),
   update: (id, data) => api.put(`/expenses/${id}`, data),
   delete: (id) => api.delete(`/expenses/${id}`),
+};
+
+export const attendanceAPI = {
+  getDaily: (date) => api.get('/attendance/daily', { params: { date } }),
+  getAll: (params) => api.get('/attendance', { params }),
+  getMonthlyReport: (params) => api.get('/attendance/monthly-report', { params }),
+  getTodayStats: () => api.get('/attendance/stats/today'),
+  upsert: (data) => api.post('/attendance', data),
+  bulkUpsert: (records) => api.post('/attendance/bulk', { records }),
+  delete: (id) => api.delete(`/attendance/${id}`),
+};
+
+export const salaryAdvanceAPI = {
+  getAll: (params) => api.get('/salary-advances', { params }),
+  getById: (id) => api.get(`/salary-advances/${id}`),
+  getPending: () => api.get('/salary-advances/pending'),
+  getStats: () => api.get('/salary-advances/stats'),
+  create: (data) => api.post('/salary-advances', data),
+  update: (id, data) => api.put(`/salary-advances/${id}`, data),
+  recover: (id, recover_amount) => api.post(`/salary-advances/${id}/recover`, { recover_amount }),
+  delete: (id) => api.delete(`/salary-advances/${id}`),
+};
+
+export const payrollAPI = {
+  getAll: (params) => api.get('/payroll', { params }),
+  getById: (id) => api.get(`/payroll/${id}`),
+  getStats: () => api.get('/payroll/stats'),
+  generate: (data) => api.post('/payroll/generate', data),
+  update: (id, data) => api.put(`/payroll/${id}`, data),
+  markPaid: (id, paid_date) => api.patch(`/payroll/${id}/mark-paid`, { paid_date }),
+  delete: (id) => api.delete(`/payroll/${id}`),
+};
+
+export const vendorAPI = {
+  getAll: (params) => api.get('/vendors', { params }),
+  getById: (id) => api.get(`/vendors/${id}`),
+  getStats: () => api.get('/vendors/stats'),
+  create: (data) => api.post('/vendors', data),
+  update: (id, data) => api.put(`/vendors/${id}`, data),
+  delete: (id) => api.delete(`/vendors/${id}`),
+  getPayments: (id) => api.get(`/vendors/${id}/payments`),
+  createPayment: (id, data) => api.post(`/vendors/${id}/payments`, data),
+  deletePayment: (id) => api.delete(`/vendors/payments/${id}`),
+  getPurchases: (id) => api.get(`/vendors/${id}/purchases`),
+  createPurchase: (id, data) => api.post(`/vendors/${id}/purchases`, data),
+};
+
+export const inventoryMovementAPI = {
+  getAll: (params) => api.get('/inventory-movements', { params }),
+  getStats: () => api.get('/inventory-movements/stats'),
+  create: (data) => api.post('/inventory-movements', data),
 };
 
 export default api;
