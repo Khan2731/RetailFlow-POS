@@ -30,6 +30,7 @@ frontend/.vite/
 frontend/.cache/
 backend/.cache/
 release/
+release-fixed/
 /electron/
 
 # Databases and local data
