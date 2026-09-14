@@ -30,6 +30,7 @@ frontend/.vite/
 frontend/.cache/
 backend/.cache/
 release/
+/electron/
 
 # Databases and local data
 *.sqlite
