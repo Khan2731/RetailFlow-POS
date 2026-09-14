@@ -31,6 +31,7 @@ frontend/.cache/
 backend/.cache/
 release/
 release-fixed/
+release-fixed2/
 /electron/
 
 # Databases and local data
